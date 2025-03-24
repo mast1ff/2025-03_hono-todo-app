@@ -1,0 +1,17 @@
+{
+  "name": "@mast1ff/2025-03_hono",
+  "scripts": {
+    "seed": "sqlite3 ./local.db < db/seeds.sql",
+    "dev": "tsx watch main.tsx"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@libsql/client": "^0.15.0",
+    "drizzle-orm": "^0.41.0",
+    "hono": "^4.7.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
