@@ -4,6 +4,9 @@ import { createClient } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { sqliteTable } from "drizzle-orm/sqlite-core";
 import { eq } from "drizzle-orm";
+import { IndexTemplate } from "./templates";
+import { HelloTemplate } from "./templates/hello";
+import { TodoTemplate } from "./templates/todo";
 
 const Todo = sqliteTable("todos", (column) => ({
   id: column.integer().primaryKey({ autoIncrement: true }),
@@ -27,33 +30,12 @@ app.use((c, next) => {
 });
 
 app.get("/", (c) => {
-  return c.html(
-    <>
-      <h1>Hello, World!</h1>
-
-      <ul>
-        <li>
-          <a href="/hello">Hello</a>
-        </li>
-        <li>
-          <a href="/todo">Todo</a>
-        </li>
-      </ul>
-    </>
-  );
+  return c.html(<IndexTemplate />);
 });
 
 app.get("/hello", (c) => {
   const name = c.req.query("name");
-  return c.html(
-    <>
-      <h1>{name ? `Hello, ${name}!` : "What's your name?"}</h1>
-      <form action="/hello" method="get">
-        <input type="text" name="name" required value={name} />
-        <input type="submit" value="Greet" />
-      </form>
-    </>
-  );
+  return c.html(<HelloTemplate name={name} />);
 });
 
 app.get("/todo", async (c) => {
@@ -66,86 +48,38 @@ app.get("/todo", async (c) => {
     todos = await db.select().from(Todo).where(eq(Todo.done, false));
   }
 
-  return c.html(
-    <>
-      <h1>Todo List</h1>
+  return c.html(<TodoTemplate showDone={showDone} todos={todos} />);
+});
 
-      <p>
-        {todos.length === 0 ? "No todos yet." : <>{todos.length} todos.</>}
-        <br />
-        {showDone ? (
-          <a href="/todo?show_done=false">Hide done</a>
-        ) : (
-          <a href="/todo?show_done=true">Show done</a>
-        )}
-      </p>
+app.post("/todo", async (c) => {
+  const db = c.get("db");
+  const payload = await c.req.parseBody();
+  await db.insert(Todo).values({ title: payload.title as string });
+  const showDone = payload.show_done === "true";
+  return c.redirect(`/todo?show_done=${showDone}`);
+});
 
-      <table>
-        <thead>
-          <tr>
-            <th>Done</th>
-            <th>Title</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {todos.length === 0 ? (
-            <tr>
-              <td colSpan="3">No todos yet.</td>
-            </tr>
-          ) : (
-            todos.map((todo) => (
-              <tr>
-                <td>
-                  <form
-                    method="post"
-                    action={`/todo/${todo.id}/update`}
-                    style="display: inline"
-                  >
-                    <input
-                      type="hidden"
-                      name="show_done"
-                      value={String(showDone)}
-                    />
-                    <input
-                      type="hidden"
-                      name="done"
-                      value={todo.done ? "false" : "true"}
-                    />
-                    <input
-                      type="submit"
-                      value={todo.done ? "Undone" : "Done"}
-                    />
-                  </form>
-                </td>
-                <td>{todo.done ? <s>{todo.title}</s> : todo.title}</td>
-                <td>
-                  <form
-                    method="post"
-                    action={`/todo/${todo.id}/delete`}
-                    style="display: inline"
-                  >
-                    <input
-                      type="hidden"
-                      name="show_done"
-                      value={String(showDone)}
-                    />
-                    <input type="submit" value="Delete" />
-                  </form>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+app.post("/todo/:id/update", async (c) => {
+  const db = c.get("db");
+  const id = c.req.param("id");
+  const payload = await c.req.parseBody();
+  await db
+    .update(Todo)
+    .set({ done: payload.done === "true" })
+    .where(eq(Todo.id, Number(id)));
 
-      <form method="post" action="/todo">
-        <input type="hidden" name="show_done" value={String(showDone)} />
-        <input type="text" name="title" required />
-        <input type="submit" value="Add" />
-      </form>
-    </>
-  );
+  const showDone = payload.show_done === "true";
+  return c.redirect(`/todo?show_done=${showDone}`);
+});
+
+app.post("/todo/:id/delete", async (c) => {
+  const db = c.get("db");
+  const id = c.req.param("id");
+  await db.delete(Todo).where(eq(Todo.id, Number(id)));
+
+  const payload = await c.req.parseBody();
+  const showDone = payload.show_done === "true";
+  return c.redirect(`/todo?show_done=${showDone}`);
 });
 
 serve({
